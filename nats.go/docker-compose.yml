@@ -1,0 +1,10 @@
+version: "3.8"
+
+services:
+  nats-server:
+    #image: provide/nats-server:latest
+    image: nats:latest
+    volumes:
+      - ./nats-server.conf:/nats-server.conf
+    ports:
+      - 4222:4222

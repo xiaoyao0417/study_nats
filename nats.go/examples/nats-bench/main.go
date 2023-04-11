@@ -66,7 +66,7 @@ func main() {
 	}
 
 	args := flag.Args()
-	if len(args) != 1 {
+	if len(args) <= 0 {
 		showUsageAndExit(1)
 	}
 
@@ -107,7 +107,8 @@ func main() {
 
 	donewg.Add(*numPubs + *numSubs)
 
-	// Run Subscribers first
+	// 首先运行订阅
+
 	startwg.Add(*numSubs)
 	for i := 0; i < *numSubs; i++ {
 		nc, err := nats.Connect(*urls, opts...)
@@ -120,7 +121,7 @@ func main() {
 	}
 	startwg.Wait()
 
-	// Now Publishers
+	// 现在发布
 	startwg.Add(*numPubs)
 	pubCounts := bench.MsgsPerClient(*numMsgs, *numPubs)
 	for i := 0; i < *numPubs; i++ {
