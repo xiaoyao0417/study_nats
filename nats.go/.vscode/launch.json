@@ -18,7 +18,6 @@
                 // "10",
                 // "msg",
                 // "欢迎加入消息"
-
                 // "s = nats://127.0.0.1:4222",
                 // "ns = 10",
                 // "msg = 欢迎加入消息"
@@ -40,7 +39,10 @@
             "mode": "auto",
             "program": "${workspaceFolder}/examples/nats-pub",
             "env": {},
-            "args": []
+            "args": [
+                "test",
+                "this is a request msg"
+            ]
         },
         {
             "name": "nats-qsub",
@@ -49,7 +51,10 @@
             "mode": "auto",
             "program": "${workspaceFolder}/examples/nats-qsub",
             "env": {},
-            "args": []
+            "args": [
+                "test",
+                "go_queue"
+            ]
         },
         {
             "name": "nats-req",
@@ -58,7 +63,10 @@
             "mode": "auto",
             "program": "${workspaceFolder}/examples/nats-req",
             "env": {},
-            "args": []
+            "args": [
+                "test",
+                "this is a request msg"
+            ]
         },
         {
             "name": "nats-rply",
@@ -67,7 +75,10 @@
             "mode": "auto",
             "program": "${workspaceFolder}/examples/nats-rply",
             "env": {},
-            "args": []
+            "args": [
+                "test",
+                "this is a replay msg"
+            ]
         },
         {
             "name": "nats-sub",
@@ -76,7 +87,9 @@
             "mode": "auto",
             "program": "${workspaceFolder}/examples/nats-sub",
             "env": {},
-            "args": []
+            "args": [
+                "subtest"
+            ]
         }
     ]
 }

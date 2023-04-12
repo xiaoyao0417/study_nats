@@ -41,7 +41,7 @@ func main() {
 	var tlsClientCert = flag.String("tlscert", "", "TLS client certificate file")
 	var tlsClientKey = flag.String("tlskey", "", "Private key file for client certificate")
 	var tlsCACert = flag.String("tlscacert", "", "CA certificate to verify peer against")
-	var reply = flag.String("reply", "", "Sets a specific reply subject")
+	var reply = flag.String("reply", "test2", "Sets a specific reply subject")
 	var showHelp = flag.Bool("h", false, "Show help message")
 
 	log.SetFlags(0)
@@ -88,21 +88,30 @@ func main() {
 		opts = append(opts, opt)
 	}
 
-	// Connect to NATS
+	// 连接到NATS
 	nc, err := nats.Connect(*urls, opts...)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer nc.Close()
 
+	// 主题,发布消息
 	subj, msg := args[0], []byte(args[1])
 
 	if reply != nil && *reply != "" {
-		nc.PublishRequest(subj, *reply, msg)
+		err_reply := nc.PublishRequest(subj, *reply, msg)
+		if err_reply != nil {
+			log.Fatal(err_reply)
+		}
 	} else {
-		nc.Publish(subj, msg)
+		// 发布给主题
+		err_pub := nc.Publish(subj, msg)
+		if err_pub != nil {
+			log.Fatal(err_pub)
+		}
 	}
 
+	// 执行到服务器
 	nc.Flush()
 
 	if err := nc.LastError(); err != nil {

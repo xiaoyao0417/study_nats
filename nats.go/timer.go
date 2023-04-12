@@ -18,16 +18,18 @@ import (
 	"time"
 )
 
-// global pool of *time.Timer's. can be used by multiple goroutines concurrently.
+// (*time.timer's)的全局池。 可以同时使用多个Goroutines使用。
+
 var globalTimerPool timerPool
 
-// timerPool provides GC-able pooling of *time.Timer's.
-// can be used by multiple goroutines concurrently.
+// TimerPool提供 *Time.Timer's的GC-Able池。
+// 可以同时使用多个goroutines使用。
+
 type timerPool struct {
 	p sync.Pool
 }
 
-// Get returns a timer that completes after the given duration.
+// 获取返回的计时器，该计时器在给定持续时间后完成。
 func (tp *timerPool) Get(d time.Duration) *time.Timer {
 	if t, _ := tp.p.Get().(*time.Timer); t != nil {
 		t.Reset(d)

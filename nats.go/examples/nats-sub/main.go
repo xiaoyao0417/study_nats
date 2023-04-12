@@ -36,6 +36,7 @@ func showUsageAndExit(exitcode int) {
 	os.Exit(exitcode)
 }
 
+// 消息打印
 func printMsg(m *nats.Msg, i int) {
 	log.Printf("[#%d] Received on [%s]: '%s'", i, m.Subject, string(m.Data))
 }
@@ -63,7 +64,7 @@ func main() {
 		showUsageAndExit(1)
 	}
 
-	// Connect Options.
+	// 连接选项.
 	opts := []nats.Option{nats.Name("NATS Sample Subscriber")}
 	opts = setupConnOptions(opts)
 
@@ -103,6 +104,7 @@ func main() {
 
 	subj, i := args[0], 0
 
+	// 订阅(主题，函数处理)
 	nc.Subscribe(subj, func(msg *nats.Msg) {
 		i += 1
 		printMsg(msg, i)
