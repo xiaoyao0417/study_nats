@@ -150,6 +150,7 @@ func main() {
 	}
 }
 
+// 运行发布
 func runPublisher(nc *nats.Conn, startwg, donewg *sync.WaitGroup, numMsgs int, msgSize int) {
 	startwg.Done()
 
@@ -171,11 +172,12 @@ func runPublisher(nc *nats.Conn, startwg, donewg *sync.WaitGroup, numMsgs int, m
 	donewg.Done()
 }
 
+// 运行订阅
 func runSubscriber(nc *nats.Conn, startwg, donewg *sync.WaitGroup, numMsgs int, msgSize int) {
 	args := flag.Args()
 	subj := args[0]
 
-	received := 0
+	received := 0 // 接收数量
 	ch := make(chan time.Time, 2)
 	sub, _ := nc.Subscribe(subj, func(msg *nats.Msg) {
 		received++
@@ -186,6 +188,10 @@ func runSubscriber(nc *nats.Conn, startwg, donewg *sync.WaitGroup, numMsgs int, 
 			ch <- time.Now()
 		}
 	})
+
+	sub.Drain()
+
+	//SetPendingLimits设置此订阅的挂起消息和字节的限制。不允许为零。任何负值都意味着给定的度量不受限制。
 	sub.SetPendingLimits(-1, -1)
 	nc.Flush()
 	startwg.Done()

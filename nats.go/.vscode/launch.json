@@ -12,15 +12,7 @@
             "program": "${workspaceFolder}/examples/nats-bench",
             "env": {},
             "args": [
-                // "s",
-                // "nats://127.0.0.1:4222",
-                // "ns",
-                // "10",
-                // "msg",
-                // "欢迎加入消息"
-                // "s = nats://127.0.0.1:4222",
-                // "ns = 10",
-                // "msg = 欢迎加入消息"
+                "test"
             ]
         },
         {
@@ -30,7 +22,9 @@
             "mode": "auto",
             "program": "${workspaceFolder}/examples/nats-echo",
             "env": {},
-            "args": []
+            "args": [
+                "test"
+            ]
         },
         {
             "name": "nats-pub",

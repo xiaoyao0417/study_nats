@@ -1,3 +1,7 @@
-# 启动 nats
+# QueueSubscribe 和 Subscribe 使用
 
-go run main.go -s "nats://127.0.0.1:4222" -t -geo true
+1. 启动nats
+docker-compose up
+
+2. 运行
+go run main.go test

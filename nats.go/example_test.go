@@ -303,12 +303,13 @@ func ExampleEncodedConn_BindRecvChan() {
 	}
 
 	ch := make(chan *person)
+	// 绑定接收通道
 	c.BindRecvChan("hello", ch)
 
 	me := &person{Name: "derek", Age: 22, Address: "85 Second St"}
 	c.Publish("hello", me)
 
-	// Receive the publish directly on a channel
+	// 直接在通道上接收发布信息
 	who := <-ch
 
 	fmt.Printf("%v says hello!\n", who)
