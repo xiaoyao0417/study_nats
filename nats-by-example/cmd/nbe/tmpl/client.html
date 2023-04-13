@@ -1,0 +1,107 @@
+<!doctype html>
+<html>
+<head>
+	{{template "head" .}}
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:creator" content="@thedevel" />
+  <meta name="twitter:title" content="{{.ExampleTitle}} ({{.Language}})" />
+  <meta name="twitter:description" content="{{.ExampleDescription}}" />
+  <meta name="twitter:image" content="https://natsbyexample.com/nbe-twitter.png" />
+  <meta name="twitter:image:alt" content="NATS by Example" />
+
+  <link rel="stylesheet" type="text/css" href="/asciinema-player.css" />
+</head>
+<body>
+  <header>
+    <div class="container">
+      {{template "logo"}}
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+      <h2 class="title">{{.ExampleTitle}} <small class="quiet">in {{.CategoryTitle}}</small></h2>
+
+      <div class="description">
+      {{.ExampleDescription}}
+      </div>
+
+      {{$currentPath := .Path}}
+
+      <div class="info">
+        <!--
+        <div class="links">
+          Jump to..
+          <ul>
+            <li><a href="#code">Code</a></li>
+            <li><a href="#output">Output</a></li>
+            <li><a href="#recording">Recording</a></li>
+          </ul>
+        </div>
+        -->
+
+        <div class="language-tabs">
+          {{range .Links}}
+          {{if eq .Path $currentPath}}
+          <span class="active">{{.Label}}</span>
+          {{else if .Path}}
+          <span><a href="/{{.Path}}">{{.Label}}</a></span>
+          {{else}}
+          <span class="inactive" title="Not yet implemented">{{.Label}}</span>
+          {{end}}
+          {{end}}
+          <div><small>Jump to the <a href="#output">output</a> or the <a href="#recording">recording</a></small></div>
+        </div>
+
+        <div class="source-run">
+          <pre>$ nbe run {{.RunPath}}</pre>
+          <small>
+            View the <a href="{{.SourceURL}}" target=_blank>source code</a> or
+            <a target=_blank href="https://github.com/ConnectEverything/nats-by-example/#getting-started">learn</a> how to run this example yourself</small>
+        </div>
+
+      </div>
+
+      <h3 id="code">Code</h3>
+
+      <div class="example">
+      {{range .Blocks}}
+      {{if eq .Type "comment" }}
+        <div class="example-comment">
+        {{.HTML}}
+        </div>
+      {{else}}
+        <div class="example-code">
+        {{.HTML}}
+        </div>
+      {{end}}
+      {{end}}
+      </div>
+
+      <h3 id="output">Output</h3>
+      <pre class="output">{{.Output}}</pre>
+
+      <h3 id="recording">Recording</h3>
+      <div class="quiet text-center">Note, playback is half speed to make it a bit easier to follow.</div>
+      <div id="asciinema"></div>
+
+    </div>
+  </main>
+  <script src="/main.js" async></script>
+  <script src="/asciinema-player.min.js"></script>
+  <script>
+    var url = '/{{.AsciinemaURL}}';
+    AsciinemaPlayer.create(url, document.getElementById('asciinema'), {
+      cols: 120,
+      rows: 24,
+      fit: false,
+      speed: 0.5,
+      terminalFontSize: "14px",
+      terminalFontFamily: "'Roboto Mono', 'JetBrains Mono', 'Source Code Pro', 'FreeMono', monospace",
+      terminalFontHeight: 1.4,
+    });
+  </script>
+  <footer>
+  </footer>
+</body>
+</html>

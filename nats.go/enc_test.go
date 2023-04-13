@@ -209,6 +209,7 @@ func TestRequest(t *testing.T) {
 	sentName := "Ivan"
 	recvName := "Kozlovic"
 
+	// 订阅
 	if _, err := c.Subscribe("foo", func(_, reply string, p *testdata.Person) {
 		if p.Name != sentName {
 			t.Fatalf("Got wrong name: %v instead of %v", p.Name, sentName)
@@ -219,6 +220,8 @@ func TestRequest(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Unable to create subscription: %v", err)
 	}
+
+	// 订阅
 	if _, err := c.Subscribe("foo", func(_ string, p *testdata.Person) {
 		if p.Name != sentName {
 			t.Fatalf("Got wrong name: %v instead of %v", p.Name, sentName)
@@ -240,6 +243,7 @@ func TestRequest(t *testing.T) {
 	}
 
 	response := &testdata.Person{}
+	// 请求
 	if err := c.Request("foo", &testdata.Person{Name: sentName}, response, 2*time.Second); err != nil {
 		t.Fatalf("Unable to publish: %v", err)
 	}
@@ -260,6 +264,7 @@ func TestRequest(t *testing.T) {
 	}
 	defer c2.Close()
 
+	// 队列订阅
 	if _, err := c2.QueueSubscribe("bar", "baz", func(m *Msg) {
 		response := &Msg{Subject: m.Reply, Data: []byte(recvName)}
 		c2.Conn.PublishMsg(response)
@@ -269,6 +274,8 @@ func TestRequest(t *testing.T) {
 	}
 
 	mReply := Msg{}
+
+	// 请求
 	if err := c2.Request("bar", &Msg{Data: []byte(sentName)}, &mReply, 2*time.Second); err != nil {
 		t.Fatalf("Unable to send request: %v", err)
 	}
@@ -288,6 +295,7 @@ func TestRequest(t *testing.T) {
 	}
 }
 
+// 测试请求 gob
 func TestRequestGOB(t *testing.T) {
 	ts := RunServerOnPort(ENC_TEST_PORT)
 	defer ts.Shutdown()
@@ -313,6 +321,7 @@ func TestRequestGOB(t *testing.T) {
 	}
 	defer ec.Close()
 
+	// 队列订阅
 	ec.QueueSubscribe("foo.request", "g", func(subject, reply string, r *Request) {
 		if r.Name != "meg" {
 			t.Fatalf("Expected request to be 'meg', got %q", r)
@@ -322,6 +331,7 @@ func TestRequestGOB(t *testing.T) {
 	})
 
 	reply := Person{}
+	// 请求
 	if err := ec.Request("foo.request", &Request{Name: "meg"}, &reply, time.Second); err != nil {
 		t.Fatalf("Failed to receive response: %v", err)
 	}
