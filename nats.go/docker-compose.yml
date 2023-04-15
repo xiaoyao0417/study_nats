@@ -4,8 +4,8 @@ services:
   nats-server:
     #image: provide/nats-server:latest
     image: nats:latest
-    volumes:
-      - ./nats-server.conf:/nats-server.conf
+    # volumes:
+    #   - ./nats-server.conf:/nats-server.conf
     # 开启jetstream
     command: -js
     ports:

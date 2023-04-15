@@ -1,5 +1,6 @@
 {
     "cSpell.words": [
+        "aerr",
         "Anatolii",
         "Arity",
         "demarshal",
@@ -17,9 +18,11 @@
         "protobuf",
         "qsub",
         "recvd",
+        "revisiong",
         "rply",
         "tlscacert",
         "tlscert",
-        "tlskey"
+        "tlskey",
+        "Tmpl"
     ]
 }
