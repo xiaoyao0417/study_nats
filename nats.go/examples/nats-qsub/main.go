@@ -88,7 +88,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// 主题，队列，编号
 	subj, queue, i := args[0], args[1], 0
 
 	nc.QueueSubscribe(subj, queue, func(msg *nats.Msg) {

@@ -1,7 +1,20 @@
 # NATS - Go Client
 A [Go](http://golang.org) client for the [NATS messaging system](https://nats.io).
 
-## 安装
+[![License Apache 2][License-Image]][License-Url] [![Go Report Card][ReportCard-Image]][ReportCard-Url] [![Build Status][Build-Status-Image]][Build-Status-Url] [![GoDoc][GoDoc-Image]][GoDoc-Url] [![Coverage Status][Coverage-image]][Coverage-Url]
+
+[License-Url]: https://www.apache.org/licenses/LICENSE-2.0
+[License-Image]: https://img.shields.io/badge/License-Apache2-blue.svg
+[ReportCard-Url]: https://goreportcard.com/report/github.com/nats-io/nats.go
+[ReportCard-Image]: https://goreportcard.com/badge/github.com/nats-io/nats.go
+[Build-Status-Url]: https://travis-ci.com/github/nats-io/nats.go
+[Build-Status-Image]: https://travis-ci.com/nats-io/nats.go.svg?branch=main
+[GoDoc-Url]: https://pkg.go.dev/github.com/nats-io/nats.go
+[GoDoc-Image]: https://img.shields.io/badge/GoDoc-reference-007d9c
+[Coverage-Url]: https://coveralls.io/r/nats-io/nats.go?branch=main
+[Coverage-image]: https://coveralls.io/repos/github/nats-io/nats.go/badge.svg?branch=main
+
+## Installation
 
 ```bash
 # Go client
@@ -16,7 +29,7 @@ When using or transitioning to Go modules support:
 ```bash
 # Go client latest or explicit version
 go get github.com/nats-io/nats.go/@latest
-go get github.com/nats-io/nats.go/@v1.25.0
+go get github.com/nats-io/nats.go/@v1.27.1
 
 # For latest NATS Server, add /v2 at the end
 go get github.com/nats-io/nats-server/v2
@@ -25,66 +38,71 @@ go get github.com/nats-io/nats-server/v2
 # go get github.com/nats-io/nats-server
 ```
 
-## 基本用法
+## Basic Usage
 
 ```go
 import "github.com/nats-io/nats.go"
 
-// 连接到服务器
+// Connect to a server
 nc, _ := nats.Connect(nats.DefaultURL)
 
-// 简单发布
+// Simple Publisher
 nc.Publish("foo", []byte("Hello World"))
 
-// 简单异步订阅
+// Simple Async Subscriber
 nc.Subscribe("foo", func(m *nats.Msg) {
     fmt.Printf("Received a message: %s\n", string(m.Data))
 })
 
-// 响应请求消息
+// Responding to a request message
 nc.Subscribe("request", func(m *nats.Msg) {
     m.Respond([]byte("answer is 42"))
 })
 
-// 简单同步订阅
+// Simple Sync Subscriber
 sub, err := nc.SubscribeSync("foo")
 m, err := sub.NextMsg(timeout)
 
-// 通道订阅
+// Channel Subscriber
 ch := make(chan *nats.Msg, 64)
 sub, err := nc.ChanSubscribe("foo", ch)
 msg := <- ch
 
-// 取消订阅
+// Unsubscribe
 sub.Unsubscribe()
 
 // Drain
-// 将删除关注，直到所有消息已处理
 sub.Drain()
 
-// 请求
+// Requests
 msg, err := nc.Request("help", []byte("help me"), 10*time.Millisecond)
 
-// 答复
+// Replies
 nc.Subscribe("help", func(m *nats.Msg) {
     nc.Publish(m.Reply, []byte("I can help!"))
 })
 
 // Drain connection (Preferred for responders)
 // Close() not needed if this is called.
-// 进入到Drain状态，完成后将  发布商将被耗尽，无法发布
 nc.Drain()
 
-// 关闭连接
+// Close connection
 nc.Close()
 ```
 
-## JetStream 基本用法
+## JetStream Basic Usage
+
+> __NOTE__
+>
+> We encourage you to try out a new, simplified version on JetStream API.
+> The new API is currently in preview and is available under `jetstream` package.
+>
+> You can find more information on the new API [here](https://github.com/nats-io/nats.go/blob/main/jetstream/README.md)
 
 ```go
 import "github.com/nats-io/nats.go"
 
-// 连接到NATS
+// Connect to NATS
 nc, _ := nats.Connect(nats.DefaultURL)
 
 // Create JetStream Context
@@ -97,7 +115,6 @@ js.Publish("ORDERS.scratch", []byte("hello"))
 for i := 0; i < 500; i++ {
 	js.PublishAsync("ORDERS.scratch", []byte("hello"))
 }
-
 select {
 case <-js.PublishAsyncComplete():
 case <-time.After(5 * time.Second):
@@ -124,7 +141,7 @@ sub.Unsubscribe()
 sub.Drain()
 ```
 
-## JetStream 基础管理
+## JetStream Basic Management
 
 ```go
 import "github.com/nats-io/nats.go"
@@ -159,12 +176,11 @@ js.DeleteConsumer("ORDERS", "MONITOR")
 js.DeleteStream("ORDERS")
 ```
 
-## 编码连接
+## Encoded Connections
 
 ```go
 
 nc, _ := nats.Connect(nats.DefaultURL)
-// json编码
 c, _ := nats.NewEncodedConn(nc, nats.JSON_ENCODER)
 defer c.Close()
 
@@ -214,7 +230,7 @@ c.Subscribe("help", func(subj, reply string, msg string) {
 c.Close();
 ```
 
-## 身份验证 (Nkeys and 用户凭据)
+## New Authentication (Nkeys and User Credentials)
 This requires server with version >= 2.0.0
 
 NATS servers have a new security and authentication mechanism to authenticate with user credentials and Nkeys.
@@ -293,12 +309,10 @@ if err != nil {
 
 ```
 
-## 使用Go通道(netchan)
+## Using Go Channels (netchan)
 
 ```go
 nc, _ := nats.Connect(nats.DefaultURL)
-
-// 创建编码连接
 ec, _ := nats.NewEncodedConn(nc, nats.JSON_ENCODER)
 defer ec.Close()
 
@@ -309,27 +323,25 @@ type person struct {
 }
 
 recvCh := make(chan *person)
-// 绑定接收通道
 ec.BindRecvChan("hello", recvCh)
 
 sendCh := make(chan *person)
-// 绑定发送通道
 ec.BindSendChan("hello", sendCh)
 
 me := &person{Name: "derek", Age: 22, Address: "140 New Montgomery Street"}
 
-// 通过Go通道发送
+// Send via Go channels
 sendCh <- me
 
-// 通过Go通道接收
+// Receive via Go channels
 who := <- recvCh
 ```
 
-## 通配符订阅
+## Wildcard Subscriptions
 
 ```go
 
-// “*”匹配主题任何级别的任何标记
+// "*" matches any token, at any level of the subject.
 nc.Subscribe("foo.*.baz", func(m *Msg) {
     fmt.Printf("Msg received on [%s] : %s\n", m.Subject, string(m.Data));
 })
@@ -338,18 +350,18 @@ nc.Subscribe("foo.bar.*", func(m *Msg) {
     fmt.Printf("Msg received on [%s] : %s\n", m.Subject, string(m.Data));
 })
 
-//“>”匹配主题尾部的任何长度，并且只能是最后一个标记
-//例如“foo.>'将匹配“foo.bar”、“foo.bar.baz”、“foo.foo.bar.bax.22'”
+// ">" matches any length of the tail of a subject, and can only be the last token
+// E.g. 'foo.>' will match 'foo.bar', 'foo.bar.baz', 'foo.foo.bar.bax.22'
 nc.Subscribe("foo.>", func(m *Msg) {
     fmt.Printf("Msg received on [%s] : %s\n", m.Subject, string(m.Data));
 })
 
-// 匹配以上所有内容
+// Matches all of the above
 nc.Publish("foo.bar.baz", []byte("Hello World"))
 
 ```
 
-## 队列组
+## Queue Groups
 
 ```go
 // All subscriptions with the same queue name will form a queue group.
@@ -357,38 +369,35 @@ nc.Publish("foo.bar.baz", []byte("Hello World"))
 // using queuing semantics. You can have as many queue groups as you wish.
 // Normal subscribers will continue to work as expected.
 
-//具有相同队列名称的所有订阅都将组成一个队列组。
-//每个消息将被传递给每个队列组仅一个订户，
-//使用排队语义。您可以拥有任意数量的队列组。
-//普通订户将继续按预期工作。
-
 nc.QueueSubscribe("foo", "job_workers", func(_ *Msg) {
   received += 1;
 })
 ```
 
-## 高级用法
+## Advanced Usage
 
 ```go
 
-// 通常，库会在尝试连接没有运行的服务器时返回一个错误。RetryOnFailedConnect 选项将设置如果无法立即连接，则连接处于重新连接状态。
-
+// Normally, the library will return an error when trying to connect and
+// there is no server running. The RetryOnFailedConnect option will set
+// the connection in reconnecting state if it failed to connect right away.
 nc, err := nats.Connect(nats.DefaultURL,
     nats.RetryOnFailedConnect(true),
     nats.MaxReconnects(10),
     nats.ReconnectWait(time.Second),
     nats.ReconnectHandler(func(_ *nats.Conn) {
-        // 请注意，这将用于第一个异步连接。.
+        // Note that this will be invoked for the first asynchronous connect.
     }))
 if err != nil {
-    //即使无法连接，也不应返回错误，但是您仍然需要检查是否有一些配置错误。
+    // Should not return an error even if it can't connect, but you still
+    // need to check in case there are some configuration errors.
 }
 
-// 与服务器的Flush连接，当所有消息都处理时返回。
+// Flush connection to server, returns when all messages have been processed.
 nc.Flush()
 fmt.Println("All clear!")
 
-// FlushTimeOut也指定超时值。
+// FlushTimeout specifies a timeout value as well.
 err := nc.FlushTimeout(1*time.Second)
 if err != nil {
     fmt.Println("All clear!")
@@ -397,13 +406,11 @@ if err != nil {
 }
 
 // Auto-unsubscribe after MAX_WANTED messages received
-
-// 接收到max_want的消息后自动Auto-unsubscribe
 const MAX_WANTED = 10
 sub, err := nc.Subscribe("foo")
 sub.AutoUnsubscribe(MAX_WANTED)
 
-// 多个连接
+// Multiple connections
 nc1 := nats.Connect("nats://host1:4222")
 nc2 := nats.Connect("nats://host2:4222")
 
@@ -415,7 +422,7 @@ nc2.Publish("foo", []byte("Hello World!"));
 
 ```
 
-## 集群使用
+## Clustered Usage
 
 ```go
 
@@ -423,24 +430,18 @@ var servers = "nats://localhost:1222, nats://localhost:1223, nats://localhost:12
 
 nc, err := nats.Connect(servers)
 
-//可选设置ReconnectWait和MaxReconnect尝试。 
-//此示例意味着每个后端总共10秒。
+// Optionally set ReconnectWait and MaxReconnect attempts.
+// This example means 10 seconds total per backend.
 nc, err = nats.Connect(servers, nats.MaxReconnects(5), nats.ReconnectWait(2 * time.Second))
 
 // You can also add some jitter for the reconnection.
 // This call will add up to 500 milliseconds for non TLS connections and 2 seconds for TLS connections.
 // If not specified, the library defaults to 100 milliseconds and 1 second, respectively.
-//您还可以为重新连接添加一些抖动。 
- //此呼叫的非TLS连接最多可高达500毫秒，而TLS连接的2秒。 
- //如果未指定，库默认为100毫秒和1秒。
 nc, err = nats.Connect(servers, nats.ReconnectJitter(500*time.Millisecond, 2*time.Second))
 
 // You can also specify a custom reconnect delay handler. If set, the library will invoke it when it has tried
 // all URLs in its list. The value returned will be used as the total sleep time, so add your own jitter.
 // The library will pass the number of times it went through the whole list.
-//您还可以指定自定义重新连接延迟处理程序。 如果设置，库在尝试时会调用它 
- //列表中的所有URL。 返回的值将用作总睡眠时间，因此请添加您自己的抖动。 
- //图书馆将通过整个列表的次数。
 nc, err = nats.Connect(servers, nats.CustomReconnectDelay(func(attempts int) time.Duration {
     return someBackoffFunction(attempts)
 }))
@@ -487,10 +488,9 @@ nc, err = nats.Connect("nats://my:pwd@localhost:4222", nats.UserInfo("foo", "bar
 
 ```
 
-## Context 支持
+## Context support (+Go 1.7)
 
 ```go
-
 ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 defer cancel()
 
@@ -515,3 +515,10 @@ req := &request{Message: "Hello"}
 resp := &response{}
 err := c.RequestWithContext(ctx, "foo", req, resp)
 ```
+
+## License
+
+Unless otherwise noted, the NATS source files are distributed
+under the Apache Version 2.0 license found in the LICENSE file.
+
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fnats-io%2Fgo-nats.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fnats-io%2Fgo-nats?ref=badge_large)

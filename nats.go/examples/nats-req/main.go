@@ -75,14 +75,12 @@ func main() {
 		opts = append(opts, opt)
 	}
 
-	// 连接到NATS
+	// Connect to NATS
 	nc, err := nats.Connect(*urls, opts...)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer nc.Close()
-
-	// 主题,发布消息
 	subj, payload := args[0], []byte(args[1])
 
 	msg, err := nc.Request(subj, payload, 2*time.Second)

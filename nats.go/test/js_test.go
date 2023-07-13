@@ -955,6 +955,160 @@ func TestJetStreamSubscribe(t *testing.T) {
 	}
 }
 
+func TestJetStreamSubscribe_SkipConsumerLookup(t *testing.T) {
+	s := RunBasicJetStreamServer()
+	defer shutdownJSServerAndRemoveStorage(t, s)
+
+	nc, js := jsClient(t, s)
+	defer nc.Close()
+	_, err := js.AddStream(&nats.StreamConfig{
+		Name:     "TEST",
+		Subjects: []string{"foo"},
+	})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	_, err = js.AddConsumer("TEST", &nats.ConsumerConfig{
+		Name:           "cons",
+		DeliverSubject: "_INBOX.foo",
+		AckPolicy:      nats.AckExplicitPolicy,
+	})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	// for checking whether subscribe looks up the consumer
+	infoSub, err := nc.SubscribeSync("$JS.API.CONSUMER.INFO.TEST.*")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	defer infoSub.Unsubscribe()
+
+	// for checking whether subscribe creates the consumer
+	createConsSub, err := nc.SubscribeSync("$JS.API.CONSUMER.CREATE.>")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	defer createConsSub.Unsubscribe()
+	t.Run("use Bind to skip consumer lookup and create", func(t *testing.T) {
+		sub, err := js.SubscribeSync("", nats.Bind("TEST", "cons"), nats.SkipConsumerLookup(), nats.DeliverSubject("_INBOX.foo"))
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		defer sub.Unsubscribe()
+		// we should get timeout waiting for msg on CONSUMER.INFO
+		if msg, err := infoSub.NextMsg(50 * time.Millisecond); err == nil {
+			t.Fatalf("Expected to skip consumer lookup; got message on %q", msg.Subject)
+		}
+
+		// we should get timeout waiting for msg on CONSUMER.CREATE
+		if msg, err := createConsSub.NextMsg(50 * time.Millisecond); err == nil {
+			t.Fatalf("Expected to skip consumer create; got message on %q", msg.Subject)
+		}
+		if _, err := js.Publish("foo", []byte("msg")); err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
+		if _, err := sub.NextMsg(100 * time.Millisecond); err != nil {
+			t.Fatalf("Expected to receive msg; got: %s", err)
+		}
+	})
+	t.Run("use Durable, skip consumer lookup but overwrite the consumer", func(t *testing.T) {
+		sub, err := js.SubscribeSync("foo", nats.Durable("cons"), nats.SkipConsumerLookup(), nats.DeliverSubject("_INBOX.foo"))
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		// we should get timeout waiting for msg on CONSUMER.INFO
+		if msg, err := infoSub.NextMsg(50 * time.Millisecond); err == nil {
+			t.Fatalf("Expected to skip consumer lookup; got message on %q", msg.Subject)
+		}
+
+		// we should get msg on CONSUMER.CREATE
+		if _, err := createConsSub.NextMsg(50 * time.Millisecond); err != nil {
+			t.Fatalf("Expected consumer create; got: %s", err)
+		}
+		if _, err := js.Publish("foo", []byte("msg")); err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
+		if _, err := sub.NextMsg(100 * time.Millisecond); err != nil {
+			t.Fatalf("Expected to receive msg; got: %s", err)
+		}
+	})
+	t.Run("create new consumer with Durable, skip lookup", func(t *testing.T) {
+		sub, err := js.SubscribeSync("foo", nats.Durable("pp"), nats.SkipConsumerLookup(), nats.DeliverSubject("_INBOX.foo1"))
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		defer sub.Unsubscribe()
+		// we should get timeout waiting for msg on CONSUMER.INFO
+		if msg, err := infoSub.NextMsg(50 * time.Millisecond); err == nil {
+			t.Fatalf("Expected to skip consumer lookup; got message on %q", msg.Subject)
+		}
+
+		// we should get msg on CONSUMER.CREATE
+		if _, err := createConsSub.NextMsg(50 * time.Millisecond); err != nil {
+			t.Fatalf("Expected consumer create; got: %s", err)
+		}
+		if _, err := js.Publish("foo", []byte("msg")); err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
+		if _, err := sub.NextMsg(100 * time.Millisecond); err != nil {
+			t.Fatalf("Expected to receive msg; got: %s", err)
+		}
+	})
+	t.Run("create new consumer with ConsumerName, skip lookup", func(t *testing.T) {
+		sub, err := js.SubscribeSync("foo", nats.ConsumerName("pp"), nats.SkipConsumerLookup(), nats.DeliverSubject("_INBOX.foo1"))
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		defer sub.Unsubscribe()
+		// we should get timeout waiting for msg on CONSUMER.INFO
+		if msg, err := infoSub.NextMsg(50 * time.Millisecond); err == nil {
+			t.Fatalf("Expected to skip consumer lookup; got message on %q", msg.Subject)
+		}
+
+		// we should get msg on CONSUMER.CREATE
+		if _, err := createConsSub.NextMsg(50 * time.Millisecond); err != nil {
+			t.Fatalf("Expected consumer create; got: %s", err)
+		}
+		if _, err := js.Publish("foo", []byte("msg")); err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
+		if _, err := sub.NextMsg(100 * time.Millisecond); err != nil {
+			t.Fatalf("Expected to receive msg; got: %s", err)
+		}
+	})
+
+	t.Run("create ephemeral consumer, SkipConsumerLookup has no effect", func(t *testing.T) {
+		sub, err := js.SubscribeSync("foo", nats.SkipConsumerLookup(), nats.DeliverSubject("_INBOX.foo2"))
+		if err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		defer sub.Unsubscribe()
+		// we should get timeout waiting for msg on CONSUMER.INFO
+		if msg, err := infoSub.NextMsg(50 * time.Millisecond); err == nil {
+			t.Fatalf("Expected to skip consumer lookup; got message on %q", msg.Subject)
+		}
+
+		// we should get msg on CONSUMER.CREATE
+		if _, err := createConsSub.NextMsg(50 * time.Millisecond); err != nil {
+			t.Fatalf("Expected consumer create; got: %s", err)
+		}
+		if _, err := js.Publish("foo", []byte("msg")); err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
+		if _, err := sub.NextMsg(100 * time.Millisecond); err != nil {
+			t.Fatalf("Expected to receive msg; got: %s", err)
+		}
+	})
+	t.Run("attempt to update ack policy of existing consumer", func(t *testing.T) {
+		_, err := js.SubscribeSync("foo", nats.Durable("cons"), nats.SkipConsumerLookup(), nats.DeliverSubject("_INBOX.foo"), nats.AckAll())
+		if err == nil || !strings.Contains(err.Error(), "ack policy can not be updated") {
+			t.Fatalf("Expected update consumer error, got: %v", err)
+		}
+	})
+}
+
 func TestPullSubscribeFetchBatch(t *testing.T) {
 	s := RunBasicJetStreamServer()
 	defer shutdownJSServerAndRemoveStorage(t, s)
@@ -5418,18 +5572,21 @@ func setupJSClusterWithSize(t *testing.T, clusterName string, size int) []*jsSer
 	nodes := make([]*jsServer, size)
 	opts := make([]*server.Options, 0)
 
-	getAddr := func() (string, string, int) {
+	var activeListeners []net.Listener
+	getAddr := func(t *testing.T) (string, string, int) {
 		l, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
-			panic(err)
+			t.Fatalf("Unexpected error: %v", err)
 		}
-		defer l.Close()
 
 		addr := l.Addr()
 		host := addr.(*net.TCPAddr).IP.String()
 		port := addr.(*net.TCPAddr).Port
-		l.Close()
 		time.Sleep(100 * time.Millisecond)
+
+		// we cannot close the listener immediately to avoid duplicate port binding
+		// the returned net.Listener has to be closed after all ports are drawn
+		activeListeners = append(activeListeners, l)
 		return addr.String(), host, port
 	}
 
@@ -5446,17 +5603,21 @@ func setupJSClusterWithSize(t *testing.T, clusterName string, size int) []*jsSer
 
 		if size > 1 {
 			o.Cluster.Name = clusterName
-			_, host1, port1 := getAddr()
+			_, host1, port1 := getAddr(t)
 			o.Host = host1
 			o.Port = port1
 
-			addr2, host2, port2 := getAddr()
+			addr2, host2, port2 := getAddr(t)
 			o.Cluster.Host = host2
 			o.Cluster.Port = port2
 			o.Tags = []string{o.ServerName}
 			routes = append(routes, fmt.Sprintf("nats://%s", addr2))
 		}
 		opts = append(opts, &o)
+	}
+	// close all connections used to randomize ports
+	for _, l := range activeListeners {
+		l.Close()
 	}
 
 	if size > 1 {
@@ -8622,7 +8783,7 @@ func TestJetStreamOrderedConsumerRecreateAfterReconnect(t *testing.T) {
 	s := RunBasicJetStreamServer()
 
 	// monitor for ErrConsumerNotActive error and suppress logging
-	hbMissed := make(chan struct{})
+	hbMissed := make(chan struct{}, 10)
 	errHandler := func(c *nats.Conn, s *nats.Subscription, err error) {
 		if !errors.Is(err, nats.ErrConsumerNotActive) {
 			t.Fatalf("Unexpected error: %v", err)
@@ -8788,4 +8949,96 @@ func TestJetStreamStreamInfoAlternates(t *testing.T) {
 			t.Fatalf("Expected 2 alternates, got %d", len(si.Alternates))
 		}
 	})
+}
+
+func TestJetStreamSubscribeConsumerName(t *testing.T) {
+	s := RunBasicJetStreamServer()
+	defer shutdownJSServerAndRemoveStorage(t, s)
+
+	nc, js := jsClient(t, s)
+	defer nc.Close()
+
+	var err error
+
+	// Create the stream using our client API.
+	_, err = js.AddStream(&nats.StreamConfig{
+		Name:     "TEST",
+		Subjects: []string{"foo", "bar", "baz", "foo.*"},
+	})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	_, err = js.Publish("foo", []byte("first"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Lookup the stream for testing.
+	_, err = js.StreamInfo("TEST")
+	if err != nil {
+		t.Fatalf("stream lookup failed: %v", err)
+	}
+
+	sub, err := js.SubscribeSync("foo", nats.ConsumerName("my-ephemeral"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cinfo, err := sub.ConsumerInfo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := cinfo.Config.Name
+	expected := "my-ephemeral"
+	if got != expected {
+		t.Fatalf("Expected: %v, got: %v", expected, got)
+	}
+	// Confirm that this is a durable.
+	got = cinfo.Config.Durable
+	expected = ""
+	if got != expected {
+		t.Fatalf("Expected: %v, got: %v", expected, got)
+	}
+	_, err = sub.NextMsg(1 * time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// ConsumerName will be ignored in case a durable name has been set.
+	sub, err = js.SubscribeSync("foo", nats.Durable("durable"), nats.ConsumerName("custom-name"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cinfo, err = sub.ConsumerInfo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got = cinfo.Config.Name
+	expected = "durable"
+	if got != expected {
+		t.Fatalf("Expected: %v, got: %v", expected, got)
+	}
+	got = cinfo.Config.Durable
+	expected = "durable"
+	if got != expected {
+		t.Fatalf("Expected: %v, got: %v", expected, got)
+	}
+	_, err = sub.NextMsg(1 * time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Default Ephemeral name should be short like in the server.
+	sub, err = js.SubscribeSync("foo", nats.ConsumerName(""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cinfo, err = sub.ConsumerInfo()
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedSize := 8
+	result := len(cinfo.Config.Name)
+	if result != expectedSize {
+		t.Fatalf("Expected: %v, got: %v", expectedSize, result)
+	}
 }

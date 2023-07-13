@@ -66,7 +66,7 @@ func main() {
 	}
 
 	args := flag.Args()
-	if len(args) <= 0 {
+	if len(args) != 1 {
 		showUsageAndExit(1)
 	}
 
@@ -188,9 +188,6 @@ func runSubscriber(nc *nats.Conn, startwg, donewg *sync.WaitGroup, numMsgs int, 
 			ch <- time.Now()
 		}
 	})
-
-	sub.Drain()
-
 	//SetPendingLimits设置此订阅的挂起消息和字节的限制。不允许为零。任何负值都意味着给定的度量不受限制。
 	sub.SetPendingLimits(-1, -1)
 	nc.Flush()

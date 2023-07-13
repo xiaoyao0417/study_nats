@@ -303,13 +303,12 @@ func ExampleEncodedConn_BindRecvChan() {
 	}
 
 	ch := make(chan *person)
-	// 绑定接收通道
 	c.BindRecvChan("hello", ch)
 
 	me := &person{Name: "derek", Age: 22, Address: "85 Second St"}
 	c.Publish("hello", me)
 
-	// 直接在通道上接收发布信息
+	// Receive the publish directly on a channel
 	who := <-ch
 
 	fmt.Printf("%v says hello!\n", who)
@@ -671,6 +670,11 @@ func ExampleSubOpt() {
 	js.Subscribe("foo", func(msg *nats.Msg) {
 		fmt.Printf("Received a message: %s\n", string(msg.Data))
 	}, nats.Durable("FOO"), nats.ConsumerMemoryStorage())
+
+	// Skip consumer lookup when using explicit consumer name
+	js.Subscribe("foo", func(msg *nats.Msg) {
+		fmt.Printf("Received a message: %s\n", string(msg.Data))
+	}, nats.Durable("FOO"), nats.SkipConsumerLookup())
 }
 
 func ExampleMaxWait() {

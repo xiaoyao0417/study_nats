@@ -30,8 +30,9 @@ func init() {
 	nats.RegisterEncoder(PROTOBUF_ENCODER, &ProtobufEncoder{})
 }
 
-// ProtobufEncoder 是 EncodedConn 的 protobuf 实现
-// 这个编码器将使用内置的 protobuf lib 来 Marshal和 Unmarshal 结构。
+// ProtobufEncoder is a protobuf implementation for EncodedConn
+// This encoder will use the builtin protobuf lib to Marshal
+// and Unmarshal structs.
 type ProtobufEncoder struct {
 	// Empty
 }

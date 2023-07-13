@@ -83,13 +83,12 @@ func main() {
 		opts = append(opts, opt)
 	}
 
-	// 连接到NATS
+	// Connect to NATS
 	nc, err := nats.Connect(*urls, opts...)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// 主题，应答消息
 	subj, reply, i := args[0], args[1], 0
 
 	nc.QueueSubscribe(subj, *queueName, func(msg *nats.Msg) {

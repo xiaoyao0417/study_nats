@@ -50,18 +50,10 @@ func ExampleAddService() {
 			fmt.Printf("Service %q returned an error on subject %q: %s", info.Name, err.Subject, err.Description)
 		},
 
-		// optionally, a URL pointing to API specification can be provided
-		APIURL: "http://api.com/v1",
-
 		// optional base handler
 		Endpoint: &micro.EndpointConfig{
 			Subject: "echo",
 			Handler: micro.HandlerFunc(echoHandler),
-			// Endpoint can be configured with optional request/response schemas
-			Schema: &micro.Schema{
-				Request:  "request.json",
-				Response: "response.json",
-			},
 		},
 	}
 
@@ -128,37 +120,6 @@ func ExampleWithEndpointSubject() {
 	}
 }
 
-func ExampleWithEndpointSchema() {
-	nc, err := nats.Connect("127.0.0.1:4222")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer nc.Close()
-
-	echoHandler := func(req micro.Request) {
-		req.Respond(req.Data())
-	}
-
-	config := micro.Config{
-		Name:    "EchoService",
-		Version: "1.0.0",
-	}
-
-	srv, err := micro.AddService(nc, config)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	schema := &micro.Schema{
-		Request:  "request.json",
-		Response: "response.json",
-	}
-	err = srv.AddEndpoint("Echo", micro.HandlerFunc(echoHandler), micro.WithEndpointSchema(schema))
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
 func ExampleService_AddGroup() {
 	nc, err := nats.Connect("127.0.0.1:4222")
 	if err != nil {
@@ -209,7 +170,7 @@ func ExampleService_Info() {
 	fmt.Println(info.Name)
 	fmt.Println(info.Description)
 	fmt.Println(info.Version)
-	fmt.Println(info.Subjects)
+	fmt.Println(info.Endpoints)
 }
 
 func ExampleService_Stats() {

@@ -1,4 +1,4 @@
-// Copyright 2012-2022 The NATS Authors
+// Copyright 2012-2023 The NATS Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -278,6 +279,123 @@ func TestClientCertificate(t *testing.T) {
 	}
 	defer nc.Close()
 
+	omsg := []byte("Hello!")
+	checkRecv := make(chan bool)
+
+	received := 0
+	nc.Subscribe("foo", func(m *nats.Msg) {
+		received++
+		if !bytes.Equal(m.Data, omsg) {
+			t.Fatal("Message received does not match")
+		}
+		checkRecv <- true
+	})
+	err = nc.Publish("foo", omsg)
+	if err != nil {
+		t.Fatalf("Failed to publish on secure (TLS) connection: %v", err)
+	}
+	nc.Flush()
+
+	if err := Wait(checkRecv); err != nil {
+		t.Fatal("Failed to receive message")
+	}
+}
+
+func TestClientCertificateReloadOnServerRestart(t *testing.T) {
+	copyFiles := func(t *testing.T, cpFiles map[string]string) {
+		for from, to := range cpFiles {
+			content, err := os.ReadFile(from)
+			if err != nil {
+				t.Fatalf("Error reading file: %s", err)
+			}
+			if err := os.WriteFile(to, content, 0640); err != nil {
+				t.Fatalf("Error writing file: %s", err)
+			}
+		}
+	}
+
+	s, opts := RunServerWithConfig("./configs/tlsverify.conf")
+	defer s.Shutdown()
+
+	endpoint := fmt.Sprintf("%s:%d", opts.Host, opts.Port)
+	secureURL := fmt.Sprintf("nats://%s", endpoint)
+
+	tmpCertDir := t.TempDir()
+	certFile := filepath.Join(tmpCertDir, "client-cert.pem")
+	keyFile := filepath.Join(tmpCertDir, "client-key.pem")
+	caFile := filepath.Join(tmpCertDir, "ca.pem")
+
+	// copy valid cert files to tmp dir
+	filesToCopy := map[string]string{
+		"./configs/certs/client-cert.pem": certFile,
+		"./configs/certs/client-key.pem":  keyFile,
+		"./configs/certs/ca.pem":          caFile,
+	}
+	copyFiles(t, filesToCopy)
+
+	dcChan, rcChan, errChan := make(chan bool, 1), make(chan bool, 1), make(chan error, 1)
+	nc, err := nats.Connect(secureURL,
+		nats.RootCAs(caFile),
+		nats.ClientCert(certFile, keyFile),
+		nats.ReconnectWait(100*time.Millisecond),
+		nats.ErrorHandler(func(_ *nats.Conn, _ *nats.Subscription, err error) {
+			errChan <- err
+		}),
+		nats.DisconnectErrHandler(func(_ *nats.Conn, _ error) {
+			dcChan <- true
+		}),
+		nats.ReconnectHandler(func(_ *nats.Conn) {
+			rcChan <- true
+		}),
+	)
+	if err != nil {
+		t.Fatalf("Failed to create (TLS) connection: %v", err)
+	}
+	defer nc.Close()
+
+	// overwrite client certificate files with invalid ones, those
+	// should be loaded on server restart
+	filesToCopy = map[string]string{
+		"./configs/certs/client-cert-invalid.pem": certFile,
+		"./configs/certs/client-key-invalid.pem":  keyFile,
+	}
+	copyFiles(t, filesToCopy)
+
+	// restart server
+	s.Shutdown()
+	s, _ = RunServerWithConfig("./configs/tlsverify.conf")
+	defer s.Shutdown()
+
+	// wait for disconnected signal
+	if err := Wait(dcChan); err != nil {
+		t.Fatal("Failed to receive disconnect signal")
+	}
+
+	// wait for reconnection error (bad certificate)
+	select {
+	case err := <-errChan:
+		if !strings.Contains(err.Error(), "bad certificate") {
+			t.Fatalf("Expected bad certificate error; got: %s", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatalf("Timeout waiting for reconnect error")
+	}
+
+	// overwrite cert files with valid ones again,
+	// so that subsequent reconnect attempt should succeed
+	// when cert files are reloaded
+	filesToCopy = map[string]string{
+		"./configs/certs/client-cert.pem": certFile,
+		"./configs/certs/client-key.pem":  keyFile,
+	}
+	copyFiles(t, filesToCopy)
+
+	// wait for reconnect signal
+	if err := Wait(rcChan); err != nil {
+		t.Fatal("Failed to receive reconnect signal")
+	}
+
+	// pub-sub test message to make sure connection is OK
 	omsg := []byte("Hello!")
 	checkRecv := make(chan bool)
 
@@ -903,13 +1021,14 @@ func TestConnectHandler(t *testing.T) {
 		connHandler := func(*nats.Conn) {
 			connected <- true
 		}
-		_, err := nats.Connect(nats.DefaultURL,
+		nc, err := nats.Connect(nats.DefaultURL,
 			nats.ConnectHandler(connHandler),
 			nats.RetryOnFailedConnect(true))
 
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
+		defer nc.Close()
 		select {
 		case <-connected:
 			t.Fatalf("ConnectedCB invoked when no connection established")
@@ -2641,4 +2760,106 @@ func TestRetryOnFailedConnectWithTLSError(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("Should have connected")
 	}
+}
+
+func TestConnStatusChangedEvents(t *testing.T) {
+	waitForStatus := func(t *testing.T, ch chan nats.Status, expected nats.Status) {
+		select {
+		case s := <-ch:
+			if s != expected {
+				t.Fatalf("Expected status: %s; got: %s", expected, s)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("Timeout waiting for status %q", expected)
+		}
+	}
+	t.Run("default events", func(t *testing.T) {
+		s := RunDefaultServer()
+		nc, err := nats.Connect(s.ClientURL())
+		if err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
+		statusCh := nc.StatusChanged()
+		defer close(statusCh)
+		newStatus := make(chan nats.Status, 10)
+		// non-blocking channel, so we need to be constantly listening
+		go func() {
+			for {
+				s, ok := <-statusCh
+				if !ok {
+					return
+				}
+				newStatus <- s
+			}
+		}()
+		time.Sleep(50 * time.Millisecond)
+
+		s.Shutdown()
+		waitForStatus(t, newStatus, nats.RECONNECTING)
+
+		s = RunDefaultServer()
+		defer s.Shutdown()
+
+		waitForStatus(t, newStatus, nats.CONNECTED)
+
+		nc.Close()
+		waitForStatus(t, newStatus, nats.CLOSED)
+
+		select {
+		case s := <-newStatus:
+			t.Fatalf("Unexpected status received: %s", s)
+		case <-time.After(100 * time.Millisecond):
+		}
+	})
+
+	t.Run("custom event only", func(t *testing.T) {
+		s := RunDefaultServer()
+		nc, err := nats.Connect(s.ClientURL())
+		if err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
+		statusCh := nc.StatusChanged(nats.CLOSED)
+		defer close(statusCh)
+		newStatus := make(chan nats.Status, 10)
+		// non-blocking channel, so we need to be constantly listening
+		go func() {
+			for {
+				s, ok := <-statusCh
+				if !ok {
+					return
+				}
+				newStatus <- s
+			}
+		}()
+		time.Sleep(50 * time.Millisecond)
+		s.Shutdown()
+		s = RunDefaultServer()
+		defer s.Shutdown()
+		nc.Close()
+		waitForStatus(t, newStatus, nats.CLOSED)
+
+		select {
+		case s := <-newStatus:
+			t.Fatalf("Unexpected status received: %s", s)
+		case <-time.After(100 * time.Millisecond):
+		}
+	})
+	t.Run("do not block on channel if it's not used", func(t *testing.T) {
+		s := RunDefaultServer()
+		nc, err := nats.Connect(s.ClientURL())
+		if err != nil {
+			t.Fatalf("Unexpected error: %s", err)
+		}
+		defer nc.Close()
+		// do not use the returned channel, client should never block
+		_ = nc.StatusChanged()
+		s.Shutdown()
+		s = RunDefaultServer()
+		defer s.Shutdown()
+
+		if err := nc.Publish("foo", []byte("msg")); err != nil {
+			t.Fatalf("Unexpected error: %v", err)
+		}
+		time.Sleep(100 * time.Millisecond)
+	})
 }

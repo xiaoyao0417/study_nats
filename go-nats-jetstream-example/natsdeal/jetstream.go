@@ -7,6 +7,7 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
+// 初始化
 func JetStreamInit() (nats.JetStreamContext, error) {
 	// Connect to NATS
 	// nc, err := nats.Connect(nats.DefaultURL)

@@ -429,15 +429,6 @@ func TestAddService(t *testing.T) {
 			},
 			withError: micro.ErrConfigValidation,
 		},
-		{
-			name: "validation error, invalid API URL",
-			givenConfig: micro.Config{
-				Name:    "test_service",
-				Version: "0.0.1",
-				APIURL:  "abc\r\n",
-			},
-			withError: micro.ErrConfigValidation,
-		},
 	}
 
 	for _, test := range tests {
@@ -475,8 +466,8 @@ func TestAddService(t *testing.T) {
 			if test.givenConfig.Endpoint != nil {
 				subjectsNum += 1
 			}
-			if subjectsNum != len(info.Subjects) {
-				t.Fatalf("Invalid number of registered endpoints; want: %d; got: %d", subjectsNum, len(info.Subjects))
+			if subjectsNum != len(info.Endpoints) {
+				t.Fatalf("Invalid number of registered endpoints; want: %d; got: %d", subjectsNum, len(info.Endpoints))
 			}
 			pingSubject, err := micro.ControlSubject(micro.PingVerb, info.Name, info.ID)
 			if err != nil {
@@ -664,39 +655,54 @@ func TestErrHandlerSubjectMatch(t *testing.T) {
 
 func TestGroups(t *testing.T) {
 	tests := []struct {
-		name            string
-		endpointName    string
-		groups          []string
-		expectedSubject string
+		name             string
+		endpointName     string
+		groups           []string
+		expectedEndpoint micro.EndpointInfo
 	}{
 		{
-			name:            "no groups",
-			endpointName:    "foo",
-			expectedSubject: "foo",
+			name:         "no groups",
+			endpointName: "foo",
+			expectedEndpoint: micro.EndpointInfo{
+				Name:    "foo",
+				Subject: "foo",
+			},
 		},
 		{
-			name:            "single group",
-			endpointName:    "foo",
-			groups:          []string{"g1"},
-			expectedSubject: "g1.foo",
+			name:         "single group",
+			endpointName: "foo",
+			groups:       []string{"g1"},
+			expectedEndpoint: micro.EndpointInfo{
+				Name:    "foo",
+				Subject: "g1.foo",
+			},
 		},
 		{
-			name:            "single empty group",
-			endpointName:    "foo",
-			groups:          []string{""},
-			expectedSubject: "foo",
+			name:         "single empty group",
+			endpointName: "foo",
+			groups:       []string{""},
+			expectedEndpoint: micro.EndpointInfo{
+				Name:    "foo",
+				Subject: "foo",
+			},
 		},
 		{
-			name:            "empty groups",
-			endpointName:    "foo",
-			groups:          []string{"", "g1", ""},
-			expectedSubject: "g1.foo",
+			name:         "empty groups",
+			endpointName: "foo",
+			groups:       []string{"", "g1", ""},
+			expectedEndpoint: micro.EndpointInfo{
+				Name:    "foo",
+				Subject: "g1.foo",
+			},
 		},
 		{
-			name:            "multiple groups",
-			endpointName:    "foo",
-			groups:          []string{"g1", "g2", "g3"},
-			expectedSubject: "g1.g2.g3.foo",
+			name:         "multiple groups",
+			endpointName: "foo",
+			groups:       []string{"g1", "g2", "g3"},
+			expectedEndpoint: micro.EndpointInfo{
+				Name:    "foo",
+				Subject: "g1.g2.g3.foo",
+			},
 		},
 	}
 
@@ -737,11 +743,11 @@ func TestGroups(t *testing.T) {
 			}
 
 			info := srv.Info()
-			if len(info.Subjects) != 1 {
-				t.Fatalf("Expected 1 registered endpoint; got: %d", len(info.Subjects))
+			if len(info.Endpoints) != 1 {
+				t.Fatalf("Expected 1 registered endpoint; got: %d", len(info.Endpoints))
 			}
-			if info.Subjects[0] != test.expectedSubject {
-				t.Fatalf("Invalid subject; want: %s, got: %s", test.expectedSubject, info.Subjects[0])
+			if !reflect.DeepEqual(info.Endpoints[0], test.expectedEndpoint) {
+				t.Fatalf("Invalid endpoint; want: %s, got: %s", test.expectedEndpoint, info.Endpoints[0])
 			}
 		})
 	}
@@ -765,16 +771,11 @@ func TestMonitoringHandlers(t *testing.T) {
 	config := micro.Config{
 		Name:         "test_service",
 		Version:      "0.1.0",
-		APIURL:       "http://someapi.com/v1",
 		ErrorHandler: errHandler,
 		Endpoint: &micro.EndpointConfig{
 			Subject:  "test.func",
 			Handler:  micro.HandlerFunc(func(r micro.Request) {}),
 			Metadata: map[string]string{"basic": "schema"},
-			Schema: &micro.Schema{
-				Request:  "request_schema",
-				Response: "response_schema",
-			},
 		},
 	}
 	srv, err := micro.AddService(nc, config)
@@ -846,7 +847,13 @@ func TestMonitoringHandlers(t *testing.T) {
 					ID:       info.ID,
 					Metadata: map[string]string{},
 				},
-				Subjects: []string{"test.func"},
+				Endpoints: []micro.EndpointInfo{
+					{
+						Name:     "default",
+						Subject:  "test.func",
+						Metadata: map[string]string{"basic": "schema"},
+					},
+				},
 			},
 		},
 		{
@@ -860,7 +867,13 @@ func TestMonitoringHandlers(t *testing.T) {
 					ID:       info.ID,
 					Metadata: map[string]string{},
 				},
-				Subjects: []string{"test.func"},
+				Endpoints: []micro.EndpointInfo{
+					{
+						Name:     "default",
+						Subject:  "test.func",
+						Metadata: map[string]string{"basic": "schema"},
+					},
+				},
 			},
 		},
 		{
@@ -874,80 +887,11 @@ func TestMonitoringHandlers(t *testing.T) {
 					ID:       info.ID,
 					Metadata: map[string]string{},
 				},
-				Subjects: []string{"test.func"},
-			},
-		},
-		{
-			name:    "SCHEMA all",
-			subject: "$SRV.SCHEMA",
-			expectedResponse: micro.SchemaResp{
-				Type: micro.SchemaResponseType,
-				ServiceIdentity: micro.ServiceIdentity{
-					Name:     "test_service",
-					Version:  "0.1.0",
-					ID:       info.ID,
-					Metadata: map[string]string{},
-				},
-				APIURL: "http://someapi.com/v1",
-				Endpoints: []micro.EndpointSchema{
+				Endpoints: []micro.EndpointInfo{
 					{
 						Name:     "default",
 						Subject:  "test.func",
 						Metadata: map[string]string{"basic": "schema"},
-						Schema: micro.Schema{
-							Request:  "request_schema",
-							Response: "response_schema",
-						},
-					},
-				},
-			},
-		},
-		{
-			name:    "SCHEMA name",
-			subject: "$SRV.SCHEMA.test_service",
-			expectedResponse: micro.SchemaResp{
-				Type: micro.SchemaResponseType,
-				ServiceIdentity: micro.ServiceIdentity{
-					Name:     "test_service",
-					Version:  "0.1.0",
-					ID:       info.ID,
-					Metadata: map[string]string{},
-				},
-				APIURL: "http://someapi.com/v1",
-				Endpoints: []micro.EndpointSchema{
-					{
-						Name:     "default",
-						Subject:  "test.func",
-						Metadata: map[string]string{"basic": "schema"},
-						Schema: micro.Schema{
-							Request:  "request_schema",
-							Response: "response_schema",
-						},
-					},
-				},
-			},
-		},
-		{
-			name:    "SCHEMA ID",
-			subject: fmt.Sprintf("$SRV.SCHEMA.test_service.%s", info.ID),
-			expectedResponse: micro.SchemaResp{
-				Type: micro.SchemaResponseType,
-				ServiceIdentity: micro.ServiceIdentity{
-					Name:     "test_service",
-					Version:  "0.1.0",
-					ID:       info.ID,
-					Metadata: map[string]string{},
-				},
-				APIURL: "http://someapi.com/v1",
-				Endpoints: []micro.EndpointSchema{
-					{
-						Name:     "default",
-						Subject:  "test.func",
-						Metadata: map[string]string{"basic": "schema"},
-						Schema: micro.Schema{
-							Request:  "request_schema",
-							Response: "response_schema",
-						},
 					},
 				},
 			},
@@ -965,11 +909,6 @@ func TestMonitoringHandlers(t *testing.T) {
 		{
 			name:      "STATS error",
 			subject:   "$SRV.STATS",
-			withError: true,
-		},
-		{
-			name:      "SCHEMA error",
-			subject:   "$SRV.SCHEMA",
 			withError: true,
 		},
 	}
@@ -1042,14 +981,9 @@ func TestContextHandler(t *testing.T) {
 	config := micro.Config{
 		Name:    "test_service",
 		Version: "0.1.0",
-		APIURL:  "http://someapi.com/v1",
 		Endpoint: &micro.EndpointConfig{
 			Subject: "test.func",
 			Handler: micro.ContextHandler(ctx, handler),
-			Schema: &micro.Schema{
-				Request:  "request_schema",
-				Response: "response_schema",
-			},
 		},
 	}
 
@@ -1077,56 +1011,6 @@ func TestContextHandler(t *testing.T) {
 
 }
 
-func TestServiceNilSchema(t *testing.T) {
-	s := RunServerOnPort(-1)
-	defer s.Shutdown()
-
-	nc, err := nats.Connect(s.ClientURL())
-	if err != nil {
-		t.Fatalf("Expected to connect to server, got %v", err)
-	}
-	defer nc.Close()
-
-	config := micro.Config{
-		Name:    "test_service",
-		Version: "0.1.0",
-		APIURL:  "http://someapi.com/v1",
-		Endpoint: &micro.EndpointConfig{
-			Subject: "test.func",
-			Handler: micro.HandlerFunc(func(r micro.Request) {}),
-		},
-	}
-	srv, err := micro.AddService(nc, config)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-	defer func() {
-		srv.Stop()
-		if !srv.Stopped() {
-			t.Fatalf("Expected service to be stopped")
-		}
-	}()
-
-	resp, err := nc.Request("$SRV.SCHEMA.test_service", nil, 1*time.Second)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	schema := micro.SchemaResp{}
-	err = json.Unmarshal(resp.Data, &schema)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-
-	if schema.Endpoints[0].Schema.Response != "" {
-		t.Fatalf("Invalid schema response: %#v", schema)
-	}
-
-	if schema.Endpoints[0].Schema.Response != "" {
-		t.Fatalf("Invalid schema response: %#v", schema)
-	}
-}
-
 func TestServiceStats(t *testing.T) {
 	handler := func(r micro.Request) {
 		r.Respond([]byte("ok"))
@@ -1134,11 +1018,10 @@ func TestServiceStats(t *testing.T) {
 	tests := []struct {
 		name          string
 		config        micro.Config
-		schema        *micro.Schema
 		expectedStats map[string]interface{}
 	}{
 		{
-			name: "without schema or stats handler",
+			name: "stats handler",
 			config: micro.Config{
 				Name:    "test_service",
 				Version: "0.1.0",
@@ -1160,54 +1043,15 @@ func TestServiceStats(t *testing.T) {
 			},
 		},
 		{
-			name: "with schema",
-			config: micro.Config{
-				Name:    "test_service",
-				Version: "0.1.0",
-				APIURL:  "http://someapi.com/v1",
-			},
-			schema: &micro.Schema{
-				Request: "some_request",
-			},
-		},
-		{
 			name: "with default endpoint",
 			config: micro.Config{
 				Name:    "test_service",
 				Version: "0.1.0",
-				APIURL:  "http://someapi.com/v1",
 				Endpoint: &micro.EndpointConfig{
 					Subject:  "test.func",
 					Handler:  micro.HandlerFunc(handler),
 					Metadata: map[string]string{"test": "value"},
-					Schema: &micro.Schema{
-						Request:  "some_request",
-						Response: "some_response",
-					},
 				},
-			},
-			schema: &micro.Schema{
-				Request:  "some_request",
-				Response: "some_response",
-			},
-		},
-		{
-			name: "with schema and stats handler",
-			config: micro.Config{
-				Name:    "test_service",
-				Version: "0.1.0",
-				APIURL:  "http://someapi.com/v1",
-				StatsHandler: func(e *micro.Endpoint) interface{} {
-					return map[string]interface{}{
-						"key": "val",
-					}
-				},
-			},
-			schema: &micro.Schema{
-				Request: "some_request",
-			},
-			expectedStats: map[string]interface{}{
-				"key": "val",
 			},
 		},
 	}
@@ -1229,9 +1073,6 @@ func TestServiceStats(t *testing.T) {
 			}
 			if test.config.Endpoint == nil {
 				opts := []micro.EndpointOpt{micro.WithEndpointSubject("test.func")}
-				if test.schema != nil {
-					opts = append(opts, micro.WithEndpointSchema(test.schema))
-				}
 				if err := srv.AddEndpoint("func", micro.HandlerFunc(handler), opts...); err != nil {
 					t.Fatalf("Unexpected error: %v", err)
 				}
@@ -1296,11 +1137,6 @@ func TestServiceStats(t *testing.T) {
 			}
 			if stats.Type != micro.StatsResponseType {
 				t.Errorf("Invalid response type; want: %s; got: %s", micro.StatsResponseType, stats.Type)
-			}
-			if test.config.Endpoint != nil && test.config.Endpoint.Metadata != nil {
-				if !reflect.DeepEqual(test.config.Endpoint.Metadata, stats.Endpoints[0].Metadata) {
-					t.Errorf("invalid endpoint metadata: %v", stats.Endpoints[0].Metadata)
-				}
 			}
 
 			if test.expectedStats != nil {

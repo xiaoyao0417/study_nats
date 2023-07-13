@@ -42,5 +42,4 @@ _testmain.go
 .idea
 
 # VS Code
-# .vscode 
-# .vscode/settings.json 
+.vscode 
