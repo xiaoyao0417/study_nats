@@ -54,14 +54,17 @@ func main() {
 	go endlessPublish(ctx, nc, js)
 
 	for {
+		// 最大获取100个
 		msgs, err := cons.Fetch(100, jetstream.FetchMaxWait(1*time.Second))
 		if err != nil {
 			fmt.Println(err)
 		}
+
 		for msg := range msgs.Messages() {
-			fmt.Println(string(msg.Data()))
+			fmt.Println("Fetch 接收 :" + string(msg.Data()))
 			msg.Ack()
 		}
+
 		if msgs.Error() != nil {
 			fmt.Println("Error fetching messages: ", err)
 		}

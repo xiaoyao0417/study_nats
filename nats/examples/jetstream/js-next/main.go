@@ -54,6 +54,7 @@ func main() {
 	go endlessPublish(ctx, nc, js)
 
 	for {
+		// 下一个
 		msg, err := cons.Next()
 		if err != nil {
 			fmt.Println(err)

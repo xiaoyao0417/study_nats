@@ -52,6 +52,7 @@ func main() {
 	}
 	go endlessPublish(ctx, nc, js)
 
+	// 拿取
 	for {
 		msgs, err := cons.Fetch(100)
 		if err != nil {

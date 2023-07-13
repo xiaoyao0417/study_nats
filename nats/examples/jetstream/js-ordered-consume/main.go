@@ -47,6 +47,7 @@ func main() {
 		log.Fatal(err)
 	}
 
+	//
 	cons, err := s.OrderedConsumer(ctx, jetstream.OrderedConsumerConfig{
 		MaxResetAttempts: 5,
 	})
@@ -62,6 +63,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	<-sig

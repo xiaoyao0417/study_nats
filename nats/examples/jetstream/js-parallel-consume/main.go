@@ -59,16 +59,18 @@ func main() {
 	for i := 0; i < 5; i++ {
 		cc, err := cons.Consume(func(consumeID int) jetstream.MessageHandler {
 			return func(msg jetstream.Msg) {
-				fmt.Printf("Received msg on consume %d\n", consumeID)
+				fmt.Printf("接收消息 on consume %d    :%s\n", consumeID, string(msg.Data()))
 				msg.Ack()
 			}
 		}(i), jetstream.ConsumeErrHandler(func(consumeCtx jetstream.ConsumeContext, err error) {
 			fmt.Println(err)
 		}))
+
 		if err != nil {
 			log.Fatal(err)
 		}
 		defer cc.Stop()
+
 	}
 
 	sig := make(chan os.Signal, 1)

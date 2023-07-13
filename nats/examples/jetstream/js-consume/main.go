@@ -30,6 +30,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Minute)
 	defer cancel()
 
+	// 连接
 	nc, err := nats.Connect("nats://13.250.90.207:4222")
 	if err != nil {
 		log.Fatal(err)
@@ -39,6 +40,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// 配置
 	s, err := js.CreateStream(ctx, jetstream.StreamConfig{
 		Name:     "TEST_STREAM",
 		Subjects: []string{"FOO.*"},
@@ -47,6 +50,7 @@ func main() {
 		log.Fatal(err)
 	}
 
+	//
 	cons, err := s.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
 		Durable:   "TestConsumerConsume",
 		AckPolicy: jetstream.AckExplicitPolicy,
@@ -54,14 +58,18 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	//
 	go endlessPublish(ctx, nc, js)
 
+	//
 	cc, err := cons.Consume(func(msg jetstream.Msg) {
-		fmt.Println(string(msg.Data()))
+		fmt.Println("收到:" + string(msg.Data()))
 		msg.Ack()
 	}, jetstream.ConsumeErrHandler(func(consumeCtx jetstream.ConsumeContext, err error) {
 		fmt.Println(err)
 	}))
+
 	if err != nil {
 		log.Fatal(err)
 	}

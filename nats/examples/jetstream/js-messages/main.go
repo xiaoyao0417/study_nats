@@ -53,6 +53,7 @@ func main() {
 	}
 	go endlessPublish(ctx, nc, js)
 
+	// 消息
 	it, err := cons.Messages(jetstream.PullMaxMessages(1))
 	if err != nil {
 		log.Fatal(err)

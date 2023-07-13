@@ -57,6 +57,8 @@ func main() {
 		log.Fatal(err)
 	}
 	defer it.Stop()
+
+	// 消息next
 	for {
 		msg, err := it.Next()
 		if err != nil {
