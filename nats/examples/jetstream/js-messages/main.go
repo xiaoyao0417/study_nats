@@ -27,7 +27,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Minute)
 	defer cancel()
 
-	nc, err := nats.Connect("127.0.0.1:4222")
+	nc, err := nats.Connect("13.250.90.207:4222")
 	if err != nil {
 		log.Fatal(err)
 	}
